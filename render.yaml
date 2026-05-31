@@ -1,8 +1,4 @@
-# Render Blueprint for the Stampr loyalty platform.
-# The backend serves the static frontend, so a single web service runs the whole app.
-
 services:
-  # --- Backend API (also serves the frontend by default) ---
   - type: web
     name: loyalty-platform-api
     runtime: node
@@ -16,6 +12,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
-        sync: false          # set in the Render dashboard (your Atlas URI)
+        sync: false
       - key: JWT_SECRET
-        generateValue: true  # Render generates a strong secret automatically
+        generateValue: true
