@@ -1,0 +1,40 @@
+# Render Blueprint for the Stampr loyalty platform.
+# The backend serves the static frontend, so a single web service runs the
+# whole app. A separate static-site service is also defined in case you want
+# to host the frontend independently against a remote API.
+
+services:
+  # --- Backend API (also serves the frontend by default) ---
+  - type: web
+    name: loyalty-platform-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false          # set in the Render dashboard (your Atlas URI)
+      - key: JWT_SECRET
+        generateValue: true  # Render generates a strong secret automatically
+
+  # --- Optional standalone static frontend ---
+  # Useful only if you decouple the UI from the API. If you use this, set
+  # the API base URL in app.js accordingly. Disabled by default since the
+  # backend already serves /frontend/public.
+  - type: web
+    name: loyalty-platform-web
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: ""
+    staticPublishPath: public
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

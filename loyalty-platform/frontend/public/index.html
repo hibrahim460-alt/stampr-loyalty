@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stampr — Digital Loyalty</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'serif'],
+            sans: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            ink: '#15130f',
+            cream: '#f4efe6',
+            gold: '#c9a227',
+            ember: '#d4663a',
+            moss: '#3f5d4b',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root { color-scheme: light; }
+    body { background: #f4efe6; }
+    .paper {
+      background-image:
+        radial-gradient(circle at 20% 15%, rgba(201,162,39,0.08), transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(212,102,58,0.07), transparent 45%);
+    }
+    .stamp-dot { transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .25s; }
+    .stamp-dot.filled { transform: scale(1); }
+    .stamp-pop { animation: pop .4s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes pop { 0% { transform: scale(.4); } 100% { transform: scale(1); } }
+    .fade-in { animation: fade .4s ease both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .toast { animation: slideUp .3s ease both; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+    .ring-timer { transition: stroke-dashoffset 1s linear; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(21,19,15,.2); border-radius: 8px; }
+  </style>
+</head>
+<body class="font-sans text-ink paper min-h-screen">
+  <div id="app" class="min-h-screen"></div>
+  <div id="toast-host" class="fixed bottom-5 inset-x-0 flex flex-col items-center gap-2 z-50 pointer-events-none"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

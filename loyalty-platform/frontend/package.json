@@ -1,0 +1,9 @@
+{
+  "name": "loyalty-platform-frontend",
+  "version": "1.0.0",
+  "description": "Stampr loyalty platform frontend — static HTML/CSS/JS with Tailwind via CDN.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve public -l 3000"
+  }
+}
