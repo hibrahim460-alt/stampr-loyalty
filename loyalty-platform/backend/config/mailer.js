@@ -1,7 +1,9 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com', // Explicitly use the Google SMTP server address
+  port: 587,              // 🔥 Use Port 587 (Render leaves this open!)
+  secure: false,          // 🔥 Must be false for port 587 (uses STARTTLS)
   auth: {
     type: 'OAuth2',
     user: process.env.EMAIL_USER,
