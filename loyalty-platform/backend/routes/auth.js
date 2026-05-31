@@ -6,9 +6,9 @@ const User = require('../models/User');
 const { sendVerificationEmail } = require('../config/mailer');
 
 // ========================================================
-// 1. SIGN-UP ENDPOINT (Creates account & fires email code)
+// 1. SIGN-UP / REGISTER ENDPOINT (Accepts both paths!)
 // ========================================================
-router.post('/signup', async (req, res) => {
+router.post(['/signup', '/register'], async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
