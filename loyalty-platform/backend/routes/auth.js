@@ -1,101 +1,144 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const Merchant = require('../models/Merchant');
-const { signToken } = require('../utils');
-const { protect } = require('../middleware/authMiddleware');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User'); 
+const { sendVerificationEmail } = require('../config/mailer');
 
-// POST /api/auth/register
-// Registers a member or a merchant. Merchant registration also creates the
-// associated Merchant business profile.
-router.post('/register', async (req, res) => {
+// ========================================================
+// 1. SIGN-UP ENDPOINT (Creates account & fires email code)
+// ========================================================
+router.post('/signup', async (req, res) => {
   try {
-    const { name, email, password, role, birthday, businessName } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Name, email and password are required.' });
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    const exists = await User.findOne({ email: email.toLowerCase() });
-    if (exists) {
-      return res.status(409).json({ message: 'An account with this email already exists.' });
-    }
+    // Generate a secure 6-digit random code string
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeExpiration = Date.now() + 15 * 60 * 1000; // Code expires in 15 minutes
 
-    const finalRole = ['member', 'merchant'].includes(role) ? role : 'member';
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = await User.create({
-      name,
+    // Save user to the database with verification flags
+    user = new User({
       email,
-      password,
-      role: finalRole,
-      birthday: birthday || null,
+      password: hashedPassword,
+      role: role || 'member',
+      isVerified: false,
+      verificationCode: code,
+      verificationExpires: codeExpiration
     });
+    await user.save();
 
-    let merchant = null;
-    if (finalRole === 'merchant') {
-      merchant = await Merchant.create({
-        owner: user._id,
-        businessName: businessName || `${name}'s Shop`,
-      });
-      user.merchantProfile = merchant._id;
-      await user.save();
-    }
+    // Send the branded transactional email using your Google Workspace OAuth2 configurations
+    await sendVerificationEmail(email, code);
 
-    res.status(201).json({
-      token: signToken(user),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        birthday: user.birthday,
-        merchantId: merchant ? merchant._id : null,
-      },
+    res.status(201).json({ 
+      message: 'Registration initiated successfully. Please check your email for the verification code.' 
     });
   } catch (err) {
-    res.status(500).json({ message: 'Registration failed.', error: err.message });
+    console.error('Signup error:', err);
+    res.status(500).json({ message: 'Server error during registration' });
   }
 });
 
-// POST /api/auth/login
+// ========================================================
+// 2. VERIFICATION ENDPOINT (Validates the 6-digit code)
+// ========================================================
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    // Find the user trying to verify
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found' });
+    }
+
+    // Check if user has already gone through this process
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'Account is already verified' });
+    }
+
+    // Validation Check: Check if code has timed out
+    if (Date.now() > user.verificationExpires) {
+      return res.status(400).json({ message: 'Verification code has expired. Please sign up again.' });
+    }
+
+    // Validation Check: Does the code match what we sent?
+    if (user.verificationCode !== code) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Success: Activate user and clear tracking code fields out of the database
+    user.isVerified = true;
+    user.verificationCode = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    // Issue standard Authorization token directly so they are seamlessly logged in
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({ 
+      message: 'Email verified successfully!', 
+      token, 
+      role: user.role 
+    });
+  } catch (err) {
+    console.error('Verification error:', err);
+    res.status(500).json({ message: 'Server error during verification matching' });
+  }
+});
+
+// ========================================================
+// 3. LOGIN ENDPOINT (Protects system from unverified entry)
+// ========================================================
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+
+    // Look for user record
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+    // Check password match
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    res.json({
-      token: signToken(user),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        birthday: user.birthday,
-        merchantId: user.merchantProfile,
-      },
-    });
+    // SECURITY LOCKOUT: Check if email has been verified yet
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        message: 'Your email address is unverified. Please check your inbox or complete verification before logging in.' 
+      });
+    }
+
+    // Issue login Token
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({ token, role: user.role });
   } catch (err) {
-    res.status(500).json({ message: 'Login failed.', error: err.message });
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error during login authentication' });
   }
-});
-
-// GET /api/auth/me
-router.get('/me', protect, async (req, res) => {
-  res.json({
-    id: req.user._id,
-    name: req.user.name,
-    email: req.user.email,
-    role: req.user.role,
-    birthday: req.user.birthday,
-    merchantId: req.user.merchantProfile,
-  });
 });
 
 module.exports = router;
