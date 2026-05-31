@@ -3,7 +3,7 @@ services:
     name: loyalty-platform-api
     runtime: node
     plan: free
-    rootDir: backend
+    rootDir: loyalty-platform/backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
